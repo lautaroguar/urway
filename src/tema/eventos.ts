@@ -1,0 +1,69 @@
+/**
+ * ============================================================================
+ * tema/eventos.ts — Cómo se ve cada tipo de evento
+ * ============================================================================
+ *
+ * QUÉ ES:
+ *   Una tabla que asocia cada TIPO de evento (clase, parcial, entrega) con sus
+ *   colores y su ícono.
+ *
+ * QUIÉN LO USA:
+ *   - componentes/FilaEvento.tsx  → barra de color y etiqueta del tipo
+ *   - app/evento/[id].tsx         → insignia con el ícono del detalle
+ *   - app/notificaciones.tsx      → ícono de las notificaciones de calendario
+ *
+ * POR QUÉ ASÍ:
+ *   Al tener UN solo lugar que decide el aspecto de cada tipo, la fila de la
+ *   agenda, el detalle y la notificación de un mismo evento nunca se
+ *   contradicen (no puede pasar que el parcial sea rojo en un lado y azul en
+ *   otro).
+ */
+
+// `import type`: importa SOLO el tipo (que existe únicamente para TypeScript y
+// desaparece al compilar). `TipoEvento` es "clase" | "parcial" | "entrega".
+import type { TipoEvento } from "@/datos/agenda";
+import { colores } from "@/tema/colores";
+
+// `type` declara la FORMA de un objeto (TypeScript lo verifica; no existe en la
+// app ya compilada). Cada tipo de evento tiene estas cuatro propiedades.
+type EstiloEvento = {
+  /** Color de la barra lateral de la fila y del ícono. */
+  acento: string;
+  fondo: string; // fondo de la insignia (un tono oscuro del acento)
+  borde: string; // borde de la etiqueta del tipo
+  // El ícono solo puede ser uno de estos tres nombres de Ionicons (una unión
+  // de textos). Si se escribe otro, TypeScript marca error.
+  icono: "school" | "alert-circle" | "cloud-upload";
+};
+
+/**
+ * Un solo lugar decide de qué color se ve cada tipo de evento, así la fila de
+ * la agenda, la ficha de detalle y la notificación no se contradicen.
+ */
+// `Record<TipoEvento, EstiloEvento>` significa "un objeto que tiene UNA entrada
+// por cada tipo de evento, y cada entrada es un EstiloEvento". Si algún día se
+// agrega un tipo nuevo a `TipoEvento` y se olvida definir su estilo acá,
+// TypeScript avisa. Se consulta así: `estilosPorTipo[evento.tipo]`.
+export const estilosPorTipo: Record<TipoEvento, EstiloEvento> = {
+  // Clase: azul de la marca
+  clase: {
+    acento: colores.primario,
+    fondo: colores.primarioProfundo,
+    borde: colores.primarioOscuro,
+    icono: "school",
+  },
+  // Parcial: rojo claro (llama la atención)
+  parcial: {
+    acento: colores.alerta,
+    fondo: "#2A1416",
+    borde: "#5A2A2E",
+    icono: "alert-circle",
+  },
+  // Entrega: naranja
+  entrega: {
+    acento: "#F5A524",
+    fondo: "#2A2113",
+    borde: "#5A4522",
+    icono: "cloud-upload",
+  },
+};
