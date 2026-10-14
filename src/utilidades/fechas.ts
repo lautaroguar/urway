@@ -146,6 +146,41 @@ export function etiquetaRelativa(fecha: Date, referencia = new Date()): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+/** El lunes de la semana de `fecha`, a medianoche. La semana va de lunes a domingo. */
+// `getDay()` da 0 para el domingo ... 6 para el sábado. Para contar cuántos días
+// pasaron desde el lunes se corre una posición: `(getDay() + 6) % 7` da lunes → 0,
+// martes → 1 ... domingo → 6. Es la misma convención de `cuatrimestre.ts`, donde
+// los cuatrimestres arrancan un lunes.
+export function inicioDeSemana(fecha: Date): Date {
+  const desdeElLunes = (fecha.getDay() + 6) % 7;
+  return sumarDias(aMedianoche(fecha), -desdeElLunes);
+}
+
+/** "Lun", "Mar"... las tres primeras letras del día, con mayúscula. */
+export function etiquetaDiaCorto(fecha: Date): string {
+  const texto = NOMBRES_DIA[fecha.getDay()].slice(0, 3);
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** "28 sep – 4 oct" o, si la semana cae en un solo mes, "5 – 11 oct". */
+// `inicio` es el lunes; el domingo es 6 días después. `slice(0, 3)` se queda con
+// las tres primeras letras del mes ("septiembre" → "sep").
+export function etiquetaSemana(inicio: Date): string {
+  const fin = sumarDias(inicio, 6);
+  const mesFin = NOMBRES_MES[fin.getMonth()].slice(0, 3);
+
+  if (inicio.getMonth() === fin.getMonth()) {
+    return `${inicio.getDate()} – ${fin.getDate()} ${mesFin}`;
+  }
+  const mesInicio = NOMBRES_MES[inicio.getMonth()].slice(0, 3);
+  return `${inicio.getDate()} ${mesInicio} – ${fin.getDate()} ${mesFin}`;
+}
+
+/** La hora en punto como texto: 7 → "07:00". */
+export function etiquetaHora(hora: number): string {
+  return `${conCeros(hora)}:00`;
+}
+
 /** "08:30" a 510. Devuelve 0 si el texto no tiene forma de hora. */
 // Convierte una hora en "minutos desde la medianoche" para poder compararlas
 // con `<`, `<=` o restarlas. 08:30 → 8 × 60 + 30 = 510.

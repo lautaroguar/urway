@@ -4,132 +4,135 @@
  * ============================================================================
  *
  * QUÉ MUESTRA:
- *   Todos los eventos, AGRUPADOS POR DÍA y ordenados del más próximo al más
- *   lejano. Cada día es una "sección" con su título ("Hoy", "Mañana", "jue 2
- *   oct"...) y debajo sus eventos. Arriba a la derecha hay un botón "+" que abre
- *   el formulario para crear un evento.
+ *   Una vista SEMANAL: los siete días (lunes a domingo) con sus horas y los
+ *   eventos colocados según su horario. Arriba están el título, el botón "+"
+ *   (abre el formulario para crear un evento) y el selector de semana: flechas
+ *   para ir a la anterior o a la siguiente y un botón "Hoy" para volver a la
+ *   actual. Tocar un evento abre su detalle.
  *
- * POR QUÉ UNA `SectionList`:
- *   Es el componente de React Native pensado para listas con secciones. La
- *   agenda es exactamente eso: una lista agrupada por día. Además dibuja solo
- *   lo que se ve en pantalla, aunque hoy tenga pocos eventos.
+ * LA IDEA CENTRAL — UN SOLO ESTADO:
+ *   Lo único que guarda esta pantalla es `semana`: cuántas semanas se alejó de la
+ *   actual (0 = esta, -1 = la anterior, 1 = la próxima). Todo lo demás se DERIVA
+ *   en el render: el lunes de la semana, los días, los eventos de cada día y la
+ *   posición de cada bloque (eso último lo hace `SemanaCalendario`).
  *
  * DE DÓNDE SALEN LOS DATOS:
- *   De `useDatos()` (Context). Al crear o borrar un evento, la lista se
- *   actualiza sola. Las secciones NO se guardan en un estado: se ARMAN en cada
- *   render a partir de los eventos.
+ *   De `useDatos()` (Context). Al crear o borrar un evento, la grilla se
+ *   actualiza sola.
  *
  * TEORÍA:
- *   [COMP]  `SectionList`: `sections`, `renderItem`, `renderSectionHeader`,
- *           `keyExtractor`, `ListHeaderComponent`, `ListEmptyComponent`,
- *           `ItemSeparatorComponent`.
- *   [JS 25] Estado derivado: `ordenados`, `fechas` y `secciones`.
- *   [JS 9]  Inmutabilidad: se COPIA el array con `[...eventos]` antes de ordenar
- *           (porque `sort` modifica el array que recibe).
- *   [JS 7]  Spread `[...x]` y `[...new Set(x)]`.
+ *   [JS 20] `useState` con actualización funcional: `setSemana((s) => s - 1)`,
+ *           porque el valor nuevo depende del anterior.
+ *   [JS 25] Estado derivado: `inicioSemana` se calcula, no se guarda.
+ *   [COMP]  Componentes propios (`SemanaCalendario`) y un auxiliar privado
+ *           (`BotonFlecha`); el estado vive acá y baja por props.
  *   [NAV]   `router.push` a `/evento/[id]` y a `/evento/nuevo`.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Pressable, SectionList, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { FilaEvento } from "@/componentes/FilaEvento";
+import { SemanaCalendario } from "@/componentes/SemanaCalendario";
 import { useDatos } from "@/estado/datos";
-import { colores, espaciado, espacioBajoTabs } from "@/tema/colores";
-import { desdeClave, etiquetaRelativa } from "@/utilidades/fechas";
+import { colores, espaciado, radios } from "@/tema/colores";
+import {
+  etiquetaSemana,
+  inicioDeSemana,
+  sumarDias,
+} from "@/utilidades/fechas";
 
 /**
- * Agenda: los eventos agrupados por día, del más próximo al más lejano. Es una
- * `SectionList`: cada día es una sección con su título y sus eventos.
+ * Agenda: la semana elegida con sus eventos sobre una grilla de días y horas.
  */
 export default function PantallaAgenda() {
   const router = useRouter();
   const { eventos } = useDatos();
 
-  // Se arma en el render: primero ordenados por fecha y hora, después un grupo
-  // por cada fecha distinta.
-  //
-  // PASO 1 — Ordenar. `[...eventos]` hace una COPIA (spread): `sort` modifica el
-  // array sobre el que se llama, y no se debe modificar la lista del Context.
-  // Se ordena por el texto "AAAA-MM-DD HH:MM" (así fecha y hora se comparan juntas).
-  const ordenados = [...eventos].sort((a, b) =>
-    `${a.fecha} ${a.desde}`.localeCompare(`${b.fecha} ${b.desde}`)
-  );
-  // PASO 2 — Fechas distintas. `map` saca la fecha de cada evento; `new Set`
-  // elimina los repetidos; `[...]` lo vuelve array. Como ya estaban ordenados,
-  // las fechas quedan en orden.
-  const fechas = [...new Set(ordenados.map((evento) => evento.fecha))];
-  // PASO 3 — Un objeto por fecha con la forma que pide `SectionList`:
-  //   { fecha: "2026-09-29", data: [ ...eventos de ese día ] }
-  // `data` es la única clave obligatoria; `fecha` es libre y se usa en el
-  // encabezado de la sección.
-  const secciones = fechas.map((fecha) => ({
-    fecha,
-    data: ordenados.filter((evento) => evento.fecha === fecha),
-  }));
+  // Cuántas semanas se alejó de la actual. Es el único estado de la pantalla.
+  const [semana, setSemana] = useState(0);
+
+  // Se arma en el render: hoy más `semana` × 7 días cae dentro de la semana
+  // elegida, y `inicioDeSemana` lo lleva al lunes.
+  const inicioSemana = inicioDeSemana(sumarDias(new Date(), semana * 7));
 
   return (
     <View style={estilos.pantalla}>
-      <SectionList
-        // Las secciones armadas arriba.
-        sections={secciones}
-        // Cómo sacar una `key` estable de cada elemento: su id.
-        keyExtractor={(evento) => evento.id}
-        // Cómo dibujar UN evento (`item`). Se reutiliza `FilaEvento`.
-        renderItem={({ item }) => (
-          <FilaEvento
-            evento={item}
-            alTocar={() => router.push(`/evento/${item.id}`)}
+      {/* ---------- Título y botón "+" ---------- */}
+      <View style={estilos.cabecera}>
+        <Text style={estilos.titulo}>Agenda</Text>
+        <Pressable
+          onPress={() => router.push("/evento/nuevo")}
+          hitSlop={8}
+          accessibilityLabel="Crear evento"
+          style={estilos.botonMas}
+        >
+          <Ionicons name="add" size={20} color={colores.blanco} />
+        </Pressable>
+      </View>
+
+      {/* ---------- Selector de semana ---------- */}
+      <View style={estilos.navegador}>
+        <Text style={estilos.semana}>{etiquetaSemana(inicioSemana)}</Text>
+
+        <View style={estilos.controles}>
+          <BotonFlecha
+            icono="chevron-back"
+            descripcion="Semana anterior"
+            alTocar={() => setSemana((actual) => actual - 1)}
           />
-        )}
-        // Cómo dibujar el título de cada sección: "Hoy", "Mañana" o el día.
-        renderSectionHeader={({ section }) => (
-          <Text style={estilos.tituloDia}>
-            {etiquetaRelativa(desdeClave(section.fecha))}
-          </Text>
-        )}
-        // Los títulos de día NO se quedan pegados arriba al desplazarse.
-        stickySectionHeadersEnabled={false}
-        showsVerticalScrollIndicator={false}
-        // Estilo del contenido interno (con el margen inferior para la tab bar).
-        contentContainerStyle={estilos.contenido}
-        // Componente que se dibuja ENTRE cada par de eventos.
-        ItemSeparatorComponent={Separador}
-        // Encabezado de toda la lista: el título "Agenda" y el botón "+".
-        ListHeaderComponent={
-          <View style={estilos.cabecera}>
-            <Text style={estilos.titulo}>Agenda</Text>
-            <Pressable
-              onPress={() => router.push("/evento/nuevo")}
-              hitSlop={8}
-              style={estilos.botonMas}
-            >
-              <Ionicons name="add" size={20} color={colores.blanco} />
-            </Pressable>
-          </View>
-        }
-        // Lo que se muestra cuando no hay ningún evento (ESTADO VACÍO).
-        ListEmptyComponent={
-          <View style={estilos.vacio}>
-            <Ionicons
-              name="calendar-outline"
-              size={28}
-              color={colores.textoDebil}
-            />
-            <Text style={estilos.textoVacio}>
-              No hay eventos. Tocá + para agregar uno.
-            </Text>
-          </View>
-        }
+          {/* "Hoy" vuelve a la semana actual; si ya se está en ella, no hace nada
+              y se ve apagado. */}
+          <Pressable
+            onPress={() => setSemana(0)}
+            disabled={semana === 0}
+            style={({ pressed }) => [
+              estilos.botonHoy,
+              semana === 0 && estilos.apagado,
+              pressed && estilos.presionado,
+            ]}
+          >
+            <Text style={estilos.textoHoy}>Hoy</Text>
+          </Pressable>
+          <BotonFlecha
+            icono="chevron-forward"
+            descripcion="Semana siguiente"
+            alTocar={() => setSemana((actual) => actual + 1)}
+          />
+        </View>
+      </View>
+
+      {/* ---------- La grilla de la semana ---------- */}
+      <SemanaCalendario
+        eventos={eventos}
+        inicioSemana={inicioSemana}
+        alTocarEvento={(id) => router.push(`/evento/${id}`)}
       />
     </View>
   );
 }
 
-// El separador entre eventos: un espacio vacío de 8 dp. Es un componente para
-// poder pasarlo a `ItemSeparatorComponent`.
-function Separador() {
-  return <View style={estilos.separador} />;
+// ---------------------------------------------------------------------------
+// COMPONENTE AUXILIAR (privado): el botón circular con una flecha
+// ---------------------------------------------------------------------------
+
+type PropsFlecha = {
+  icono: "chevron-back" | "chevron-forward";
+  descripcion: string; // lo que lee un lector de pantalla
+  alTocar: () => void;
+};
+
+function BotonFlecha({ icono, descripcion, alTocar }: PropsFlecha) {
+  return (
+    <Pressable
+      onPress={alTocar}
+      hitSlop={6}
+      accessibilityLabel={descripcion}
+      style={({ pressed }) => [estilos.flecha, pressed && estilos.presionado]}
+    >
+      <Ionicons name={icono} size={18} color={colores.textoSuave} />
+    </Pressable>
+  );
 }
 
 const estilos = StyleSheet.create({
@@ -138,18 +141,13 @@ const estilos = StyleSheet.create({
     backgroundColor: colores.fondo,
   },
 
-  // `paddingBottom: espacioBajoTabs`: lugar para la barra de tabs flotante.
-  contenido: {
-    padding: espaciado.lg,
-    paddingBottom: espacioBajoTabs,
-  },
-
   // Título a la izquierda y botón "+" a la derecha.
   cabecera: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: espaciado.sm,
+    paddingHorizontal: espaciado.lg,
+    paddingTop: espaciado.lg,
   },
 
   titulo: {
@@ -169,28 +167,64 @@ const estilos = StyleSheet.create({
     backgroundColor: colores.primario,
   },
 
-  // Título de cada día ("Hoy", "Mañana"...).
-  tituloDia: {
-    marginTop: espaciado.lg,
-    marginBottom: espaciado.sm,
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: -0.3,
-    color: colores.texto,
+  // La semana ("28 sep – 4 oct") a la izquierda y los controles a la derecha.
+  navegador: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: espaciado.lg,
+    paddingTop: espaciado.sm,
+    paddingBottom: espaciado.md,
   },
 
-  separador: {
-    height: espaciado.sm,
+  semana: {
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    color: colores.textoSuave,
   },
 
-  vacio: {
+  controles: {
+    flexDirection: "row",
     alignItems: "center",
     gap: espaciado.sm,
-    paddingVertical: espaciado.xxl,
   },
 
-  textoVacio: {
+  // Botón circular con una flecha adentro.
+  flecha: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colores.bordeSuave,
+    backgroundColor: colores.superficieAlta,
+  },
+
+  // Pastilla "Hoy": mismo alto que las flechas.
+  botonHoy: {
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: espaciado.md,
+    borderRadius: radios.pastilla,
+    borderWidth: 1,
+    borderColor: colores.bordeSuave,
+    backgroundColor: colores.superficieAlta,
+  },
+
+  textoHoy: {
     fontSize: 13,
-    color: colores.textoDebil,
+    fontWeight: "600",
+    color: colores.azulClaro,
+  },
+
+  // "Hoy" cuando ya se está en la semana actual.
+  apagado: {
+    opacity: 0.4,
+  },
+
+  presionado: {
+    opacity: 0.7,
   },
 });

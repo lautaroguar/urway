@@ -9,8 +9,9 @@
  *   flechita. Al tocarla se ejecuta la función que le pasen (`alTocar`).
  *
  * POR QUÉ ES UN COMPONENTE APARTE:
- *   Se usa en Inicio ("Hoy" y "Próximas fechas") y en Agenda. Es el mismo
- *   dibujo en los tres lugares, así que se escribe una sola vez.
+ *   Se usa en Inicio, en "Hoy" y en "Próximas fechas". Es el mismo dibujo en
+ *   los dos lugares, así que se escribe una sola vez. (La Agenda ya no la usa:
+ *   dibuja cada evento como un bloque sobre la grilla, ver `BloqueEvento`.)
  *   [COMP] Reutilización.
  *
  * QUÉ NO HACE:
@@ -42,7 +43,7 @@ type Props = {
   mostrarFecha?: boolean;
 };
 
-/** Fila de evento reutilizada en Inicio (Hoy y Próximas fechas) y en la Agenda. */
+/** Fila de evento reutilizada en Inicio (Hoy y Próximas fechas). */
 export function FilaEvento({ evento, alTocar, mostrarFecha = false }: Props) {
   // Los colores del tipo de este evento (acento, borde, fondo, ícono). Se busca
   // con el tipo como CLAVE del objeto: `estilosPorTipo["parcial"]`.

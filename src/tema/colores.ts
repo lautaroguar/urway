@@ -82,6 +82,9 @@ export const colores = {
    */
   velo: "rgba(20, 25, 30, 0.72)", // rgba(rojo, verde, azul, opacidad de 0 a 1)
   bordeVidrio: "rgba(255, 255, 255, 0.12)", // borde blanco casi transparente
+
+  /** Tinte azul muy suave para resaltar la columna de hoy en el calendario. */
+  resaltadoHoy: "rgba(37, 99, 235, 0.10)",
 } as const;
 
 // ---------------------------------------------------------------------------

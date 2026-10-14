@@ -9,12 +9,13 @@
  *
  * QUIÉN LO USA:
  *   - componentes/FilaEvento.tsx  → barra de color y etiqueta del tipo
+ *   - componentes/BloqueEvento.tsx → fondo y barrita del bloque en la grilla semanal
  *   - app/evento/[id].tsx         → insignia con el ícono del detalle
  *   - app/notificaciones.tsx      → ícono de las notificaciones de calendario
  *
  * POR QUÉ ASÍ:
- *   Al tener UN solo lugar que decide el aspecto de cada tipo, la fila de la
- *   agenda, el detalle y la notificación de un mismo evento nunca se
+ *   Al tener UN solo lugar que decide el aspecto de cada tipo, la fila de
+ *   Inicio, el bloque de la agenda, el detalle y la notificación de un mismo evento nunca se
  *   contradicen (no puede pasar que el parcial sea rojo en un lado y azul en
  *   otro).
  */
