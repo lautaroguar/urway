@@ -1,31 +1,3 @@
-/**
- * ============================================================================
- * app/evento/[id].tsx — Detalle de un evento
- * ============================================================================
- *
- * QUÉ ES:
- *   Una ficha de SOLO LECTURA de un evento: ícono y color según el tipo,
- *   título, fecha, horario y duración, lugar, materia y notas, más un botón
- *   "Eliminar evento".
- *
- * RUTA DINÁMICA:
- *   `[id]` en el nombre del archivo = valor variable (`/evento/ev-1`,
- *   `/evento/ev-1727640000000`...). Se abre desde Inicio y desde Agenda, y como
- *   vive en el Stack raíz, sirve para las dos con un único archivo.
- *
- * DE DÓNDE SALE EL EVENTO:
- *   Se busca en la lista del Context (`useDatos().eventos`) por su id. NO está
- *   en un estado local: por eso, si se elimina, desaparece de todas partes.
- *
- * TEORÍA:
- *   [NAV]   `useLocalSearchParams` (parámetros de ruta) y `router.back()`
- *           (volver a la pantalla anterior).
- *   [JS 29] Se lee y se modifica el Context (`eventos`, `eliminarEvento`).
- *   [JS 22] Renderizado condicional: retorno temprano si no existe, y bloques
- *           que aparecen solo si hay dato (lugar, materia, notas).
- *   [JS 24] Regla de los hooks: todos se llaman antes del `return` condicional.
- *   [JS 8]  `find` para buscar un elemento en la lista.
- */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -38,20 +10,13 @@ import { colores, espaciado, radios } from "@/tema/colores";
 import { estilosPorTipo } from "@/tema/eventos";
 import { desdeClave, duracion, etiquetaDiaLargo } from "@/utilidades/fechas";
 
-/** Ficha de solo lectura de un evento, con la opción de eliminarlo. */
 export default function PantallaEvento() {
-  // El `id` de la ruta ("/evento/ev-3" → "ev-3").
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  // Del Context: la lista de eventos y la acción de eliminar.
   const { eventos, eliminarEvento } = useDatos();
 
-  // `find` devuelve el primer evento cuyo id coincide, o `undefined` si no hay.
   const evento = eventos.find((candidato) => candidato.id === id);
 
-  // Si no existe (por ejemplo, ya se eliminó), se muestra un aviso y se corta.
-  // Todos los hooks se llamaron ARRIBA de este `return`. Después de este `if`,
-  // TypeScript sabe que `evento` no es `undefined`.
   if (!evento) {
     return (
       <View style={[estilos.pantalla, estilos.vacio]}>
@@ -67,14 +32,9 @@ export default function PantallaEvento() {
     );
   }
 
-  // Colores e ícono según el tipo de evento (`tema/eventos.ts`).
   const estilo = estilosPorTipo[evento.tipo];
-  // La materia del evento, si tiene. `materiaId` es opcional: se pregunta antes
-  // de buscarla, y si no hay se usa `undefined`.
   const materia = evento.materiaId ? buscarMateria(evento.materiaId) : undefined;
 
-  // Elimina el evento del Context y vuelve a la pantalla anterior
-  // (Inicio o Agenda).
   const borrar = () => {
     eliminarEvento(evento.id);
     router.back();
@@ -87,8 +47,6 @@ export default function PantallaEvento() {
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
-        {/* Insignia: cuadrado con el ícono del tipo y su color de fondo. El
-            color va inline porque depende del tipo de evento. */}
         <View style={[estilos.insignia, { backgroundColor: estilo.fondo }]}>
           <Ionicons name={estilo.icono} size={22} color={estilo.acento} />
         </View>
@@ -98,26 +56,21 @@ export default function PantallaEvento() {
           {etiquetasTipo[evento.tipo]}
         </Text>
 
-        {/* ---------- Tarjeta con los datos ---------- */}
         <Tarjeta style={estilos.tarjeta}>
           <Dato
             icono="calendar-outline"
             rotulo="Fecha"
-            // "AAAA-MM-DD" → Date → "jueves 2 de octubre".
             valor={etiquetaDiaLargo(desdeClave(evento.fecha))}
           />
           <View style={estilos.separador} />
           <Dato
             icono="time-outline"
             rotulo="Horario"
-            // Por ejemplo: "14:00 - 16:00 · 2 h". `duracion` calcula la diferencia.
             valor={`${evento.desde} - ${evento.hasta} · ${duracion(
               evento.desde,
               evento.hasta
             )}`}
           />
-          {/* El lugar solo se muestra si el evento tiene (texto no vacío). El
-              Fragment `<> </>` agrupa la línea separadora y el dato. */}
           {evento.lugar ? (
             <>
               <View style={estilos.separador} />
@@ -128,7 +81,6 @@ export default function PantallaEvento() {
               />
             </>
           ) : null}
-          {/* La materia solo si el evento pertenece a una que exista. */}
           {materia ? (
             <>
               <View style={estilos.separador} />
@@ -141,7 +93,6 @@ export default function PantallaEvento() {
           ) : null}
         </Tarjeta>
 
-        {/* Las notas solo aparecen si el evento tiene. */}
         {evento.notas ? (
           <>
             <Text style={estilos.tituloSeccion}>Notas</Text>
@@ -151,7 +102,6 @@ export default function PantallaEvento() {
           </>
         ) : null}
 
-        {/* ---------- Botón para eliminar ---------- */}
         <Pressable
           onPress={borrar}
           style={({ pressed }) => [
@@ -167,14 +117,10 @@ export default function PantallaEvento() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// COMPONENTE AUXILIAR (privado): una fila "ícono + rótulo + valor"
-// ---------------------------------------------------------------------------
-
 type PropsDato = {
   icono: keyof typeof Ionicons.glyphMap;
-  rotulo: string; // la etiqueta chica ("Fecha")
-  valor: string; // el dato ("jueves 2 de octubre")
+  rotulo: string;
+  valor: string;
 };
 
 function Dato({ icono, rotulo, valor }: PropsDato) {
@@ -205,7 +151,6 @@ const estilos = StyleSheet.create({
     gap: espaciado.md,
   },
 
-  // Cuadrado redondeado de 52 con el ícono centrado.
   insignia: {
     width: 52,
     height: 52,
@@ -221,7 +166,6 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
 
-  // Margen negativo para acercarlo al título (compensa el `gap`).
   tipo: {
     marginTop: -espaciado.sm,
     fontSize: 13,
@@ -232,7 +176,6 @@ const estilos = StyleSheet.create({
     gap: espaciado.md,
   },
 
-  // Línea horizontal fina entre datos.
   separador: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colores.bordeSuave,
@@ -295,7 +238,6 @@ const estilos = StyleSheet.create({
     opacity: 0.7,
   },
 
-  // Pantalla centrada para el caso "el evento no existe".
   vacio: {
     alignItems: "center",
     justifyContent: "center",

@@ -1,58 +1,13 @@
-/**
- * ============================================================================
- * app/(tabs)/inicio.tsx — Pestaña "Inicio" (el panel principal)
- * ============================================================================
- *
- * QUÉ MUESTRA (de arriba hacia abajo):
- *   1. Saludo con el nombre de quien inició sesión ("Hola, María") y el
- *      cuatrimestre actual.
- *   2. Cuatro "tiles" en una fila: promedio (de las notas de los finales), créditos,
- *      finales aprobados y el CUATRIMESTRE, que lleva un circulito con el
- *      porcentaje de avance según las fechas (semana 8 de 16 = 50 %), calculado
- *      con el día de hoy.
- *   3. Tarjeta "Avance de la carrera" con barra de progreso.
- *   4. "Hoy": los eventos de hoy.
- *   5. "Materias en curso": una tarjeta por materia que se está cursando.
- *   6. "Finales pendientes": las materias con la cursada aprobada que esperan el
- *      final (solo si hay alguna).
- *   7. "Próximas fechas": los próximos 3 parciales o entregas.
- *   8. "Novedades": los avisos institucionales.
- *
- * LA IDEA CENTRAL — TODO SE CALCULA EN EL RENDER:
- *   Esta pantalla NO tiene `useState` ni `useEffect`. Lo único que lee de los
- *   Context son los eventos, las materias y el usuario de la sesión; todo lo demás
- *   (eventos de hoy, próximas fechas, materias en curso, promedio, totales, avance
- *   del cuatrimestre) se DERIVA de los datos cada vez que se dibuja. Si se cambia
- *   el estado de una materia o se carga una nota, esta pantalla se actualiza sola
- *   (el promedio incluido), porque las materias vienen del Context. Solo el nombre
- *   del saludo cambia según quién inició sesión.
- *
- * TEORÍA:
- *   [JS 25] "No dupliques estado derivable": `eventosDeHoy`, `fechasProximas`,
- *           `materiasEnCurso`, `promedio` y `avanceCarrera` son valores derivados.
- *   [JS 26] Sin `useEffect`: calcular valores para renderizar no es un efecto.
- *   [JS 8]  `filter`, `sort`, `slice` y `map`.
- *   [JS 29] `useDatos()` y `useSesion()` leen los Context.
- *   [NAV]   `router.push` con rutas dinámicas y `<Link>` para ir a otra pestaña.
- *   [COMP]  Componentes propios reutilizables (`Tarjeta`, `FilaEvento`,
- *           `BarraProgreso`, `CirculoProgreso`) y auxiliares privados de este
- *           archivo (`Tile`, `TileCuatrimestre`, `Seccion`).
- *   [EST]   `espacioBajoTabs` para que la barra flotante no tape el final.
- */
 import { Ionicons } from "@expo/vector-icons";
-// `Link`: un enlace de navegación (componente). `useRouter`: navegar desde código.
 import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { BarraProgreso } from "@/componentes/BarraProgreso";
-// El circulito de porcentaje del tile del cuatrimestre (sin librerías de gráficos).
 import { CirculoProgreso } from "@/componentes/CirculoProgreso";
 import { FilaEvento } from "@/componentes/FilaEvento";
 import { Tarjeta } from "@/componentes/Tarjeta";
-// `estudiante` ya no trae el promedio ni los créditos: solo el cuatrimestre actual.
 import { estudiante } from "@/datos/carrera";
 import { novedades } from "@/datos/novedades";
-// Los dos Context: `useDatos` (eventos y materias) y `useSesion` (quién inició sesión).
 import { useDatos } from "@/estado/datos";
 import { useSesion } from "@/estado/sesion";
 import {
@@ -62,58 +17,38 @@ import {
   radios,
 } from "@/tema/colores";
 import {
-  avanceCuatrimestre, // función: en qué semana del cuatrimestre estamos hoy
-  type AvanceCuatrimestre, // el tipo de lo que devuelve (`type` = solo existe al compilar)
+  avanceCuatrimestre,
+  type AvanceCuatrimestre,
 } from "@/utilidades/cuatrimestre";
 import { claveFecha } from "@/utilidades/fechas";
 import {
-  promedioDe, // promedio de las notas de las materias aprobadas (o null)
-  resumenCarrera, // totales: materias, créditos y finales aprobados
+  promedioDe,
+  resumenCarrera,
 } from "@/utilidades/materias";
-// `primerNombre(usuario)`: "María José Pérez" → "María".
 import { primerNombre } from "@/utilidades/usuario";
 
 export default function PantallaInicio() {
   const router = useRouter();
-  // Se necesitan los eventos y las materias del Context de datos, y el usuario de
-  // la sesión. La sintaxis `{ a, b } = objeto` (desestructuración) saca de cada
-  // objeto solo los campos que se nombran.
   const { eventos, materias } = useDatos();
   const { usuario } = useSesion();
 
-  // Todo lo de abajo se calcula en el render a partir de los datos y del
-  // contexto. No hay estado duplicado ni efectos.
-  // La fecha de hoy como texto "AAAA-MM-DD" (mismo formato que `evento.fecha`).
   const hoy = claveFecha(new Date());
 
-  // Eventos de hoy, ordenados por hora de inicio.
-  //   - `filter` se queda con los de hoy y devuelve un array NUEVO.
-  //   - `sort` ordena ese array nuevo (por eso no modifica la lista original
-  //     del Context). `localeCompare` compara textos: "08:00" < "11:30".
   const eventosDeHoy = eventos
     .filter((evento) => evento.fecha === hoy)
     .sort((a, b) => a.desde.localeCompare(b.desde));
 
-  // Próximas fechas: parciales o entregas de hoy en adelante, ordenados por
-  // fecha y hora, y solo los tres primeros.
   const fechasProximas = eventos
     .filter(
       (evento) =>
-        // Como las fechas son "AAAA-MM-DD", comparar como texto funciona igual
-        // que comparar fechas ("2026-10-02" >= "2026-09-29").
         evento.fecha >= hoy &&
         (evento.tipo === "parcial" || evento.tipo === "entrega")
     )
-    // Se concatena fecha + hora en un solo texto y se compara ("2026-09-3014:00").
     .sort((a, b) =>
       `${a.fecha}${a.desde}`.localeCompare(`${b.fecha}${b.desde}`)
     )
-    .slice(0, 3); // `slice(0, 3)` = los elementos en las posiciones 0, 1 y 2
+    .slice(0, 3);
 
-  // Las materias que estoy cursando (para las tarjetas del medio) y las que ya
-  // tienen la cursada aprobada y esperan el final. Ahora salen de `materias` (la
-  // lista del Context, que cambia cuando se cambia el estado de una materia) y no
-  // de una lista fija: `filter` se queda con las que cumplen la condición.
   const materiasEnCurso = materias.filter(
     (materia) => materia.estado === "cursando"
   );
@@ -121,54 +56,36 @@ export default function PantallaInicio() {
     (materia) => materia.estado === "pendienteFinal"
   );
 
-  // Los totales de la carrera y el promedio se CALCULAN con las materias actuales:
-  // al aprobar una (con su nota) cambian solos. El promedio es `null` si todavía
-  // no hay ninguna materia aprobada.
-  // `resumen` es un objeto: { materiasAprobadas, materiasTotales,
-  // creditosObtenidos, creditosTotales, finalesAprobados }.
   const resumen = resumenCarrera(materias);
   const promedio = promedioDe(materias);
 
-  // Fracción entre 0 y 1 (por ejemplo 2 / 10 = 0.2). La barra la usa directo y
-  // el texto la multiplica por 100.
   const avanceCarrera = resumen.materiasAprobadas / resumen.materiasTotales;
 
-  // El avance del cuatrimestre según la fecha de HOY (semana / 16). Es un objeto
-  // { enCurso, semana, porcentaje }: se calcula en cada render, sin estado.
   const cuatrimestre = avanceCuatrimestre();
 
   return (
-    // Contenedor raíz de la pantalla con `flex: 1`.
     <View style={estilos.pantalla}>
       <ScrollView
         style={estilos.scroll}
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
-        {/* ---------- 1. Saludo ---------- */}
         <View style={estilos.hero}>
-          {/* El nombre sale del usuario que inició sesión: el de la cuenta
-              creada en el registro, o "Franco" en la de demostración. */}
           <Text style={estilos.saludo}>Hola, {primerNombre(usuario)}</Text>
           <Text style={estilos.contexto}>
             {estudiante.cuatrimestreActual}º cuatrimestre · En curso
           </Text>
         </View>
 
-        {/* ---------- 2. Tiles: cuatro cajitas en fila ---------- */}
         <View style={estilos.tiles}>
           <Tile
-            // El promedio sale de las NOTAS de los finales de las materias
-            // aprobadas. `toFixed(1)` deja un decimal y devuelve texto (8.5 →
-            // "8.5"); sin ninguna materia aprobada no hay promedio y se ve "—".
             valor={promedio === null ? "—" : promedio.toFixed(1)}
             rotulo="Promedio"
             icono="star-outline"
           />
           <Tile
-            // La plantilla `${...}` convierte el número en texto ("14").
             valor={`${resumen.creditosObtenidos}`}
-            sufijo={`/${resumen.creditosTotales}`} // "/76"
+            sufijo={`/${resumen.creditosTotales}`}
             rotulo="Créditos"
             icono="trending-up"
           />
@@ -177,11 +94,9 @@ export default function PantallaInicio() {
             rotulo="Finales"
             icono="checkmark-circle-outline"
           />
-          {/* El cuarto tile: el avance del cuatrimestre según la fecha de hoy. */}
           <TileCuatrimestre avance={cuatrimestre} />
         </View>
 
-        {/* ---------- 3. Avance de la carrera ---------- */}
         <Tarjeta style={estilos.tarjetaAvance}>
           <View style={estilos.filaAvance}>
             <Text style={estilos.rotuloAvance}>Avance de la carrera</Text>
@@ -196,11 +111,8 @@ export default function PantallaInicio() {
           </Text>
         </Tarjeta>
 
-        {/* ---------- 4. Hoy ---------- */}
         <Seccion titulo="Hoy" enlace="/agenda" textoEnlace="Ver agenda" />
 
-        {/* Si no hay eventos hoy, se muestra un mensaje amable (ESTADO VACÍO);
-            si hay, una `FilaEvento` por cada uno. */}
         {eventosDeHoy.length === 0 ? (
           <Tarjeta style={estilos.tarjetaVacia}>
             <Ionicons name="sunny-outline" size={22} color={colores.textoTenue} />
@@ -211,21 +123,17 @@ export default function PantallaInicio() {
             <FilaEvento
               key={evento.id}
               evento={evento}
-              // Al tocar, se abre el detalle de ese evento (ruta dinámica).
               alTocar={() => router.push(`/evento/${evento.id}`)}
             />
           ))
         )}
 
-        {/* ---------- 5. Materias en curso ---------- */}
         <Seccion
           titulo="Materias en curso"
           enlace="/plan"
           textoEnlace="Ver plan"
         />
 
-        {/* Si no se está cursando ninguna, un mensaje (ESTADO VACÍO); si no, las
-            tarjetas van en fila, una al lado de la otra. */}
         {materiasEnCurso.length === 0 ? (
           <Tarjeta style={estilos.tarjetaVacia}>
             <Ionicons name="book-outline" size={22} color={colores.textoTenue} />
@@ -249,7 +157,6 @@ export default function PantallaInicio() {
                   <Ionicons name="sync" size={14} color={colores.azulClaro} />
                 </View>
 
-                {/* Hasta dos líneas; si el nombre es más largo, se corta con "...". */}
                 <Text style={estilos.nombreMateria} numberOfLines={2}>
                   {materia.nombre}
                 </Text>
@@ -262,32 +169,17 @@ export default function PantallaInicio() {
           </View>
         )}
 
-        {/* ---------- 6. Finales pendientes (solo si hay alguno) ---------- */}
-        {/* Una materia con la cursada aprobada ya no está "en curso", pero todavía
-            no está aprobada: acá se ve qué finales faltan rendir. Tocarla abre su
-            detalle, donde se carga la nota. */}
-        {/* `cantidad > 0 ? ( ... ) : null`: si no hay ninguno, no se dibuja nada
-            (ni siquiera el título). Los `<> ... </>` son un "fragmento": agrupan
-            dos elementos (el título y la tarjeta) sin crear una `View` de más. */}
         {finalesPendientes.length > 0 ? (
           <>
             <Seccion titulo="Finales pendientes" />
             <Tarjeta style={estilos.tarjetaNovedades}>
-              {/* `map` recibe cada materia y también su posición (`indice`). La
-                  `key` es el código de la materia, no la posición. */}
               {finalesPendientes.map((materia, indice) => (
                 <Pressable
                   key={materia.id}
-                  // Al tocar, se abre el detalle de la materia (ruta dinámica),
-                  // donde se carga la nota del final.
                   onPress={() => router.push(`/materia/${materia.id}`)}
                   style={({ pressed }) => [
-                    // Se reusan los estilos de las filas de "Novedades".
                     estilos.filaNovedad,
-                    // `indice > 0 && estilo`: la línea de arriba va en todas menos
-                    // en la primera (si es `false`, React Native lo ignora).
                     indice > 0 && estilos.separador,
-                    // Mientras se aprieta, queda un poco transparente.
                     pressed && estilos.presionado,
                   ]}
                 >
@@ -313,7 +205,6 @@ export default function PantallaInicio() {
           </>
         ) : null}
 
-        {/* ---------- 7. Próximas fechas (sin enlace) ---------- */}
         <Seccion titulo="Próximas fechas" />
 
         {fechasProximas.length === 0 ? (
@@ -332,28 +223,21 @@ export default function PantallaInicio() {
             <FilaEvento
               key={evento.id}
               evento={evento}
-              // Prop booleana: escribirla sin valor equivale a `mostrarFecha={true}`.
-              // Hace que la fila diga "Mañana · 14:00" en lugar de solo la hora.
               mostrarFecha
               alTocar={() => router.push(`/evento/${evento.id}`)}
             />
           ))
         )}
 
-        {/* ---------- 8. Novedades ---------- */}
         <Seccion titulo="Novedades" />
 
-        {/* Una sola tarjeta con los avisos adentro, separados por líneas finas. */}
         <Tarjeta style={estilos.tarjetaNovedades}>
           {novedades.map((novedad, indice) => (
             <View
               key={novedad.id}
-              // La línea separadora se agrega a todos menos al primero.
               style={[estilos.filaNovedad, indice > 0 && estilos.separador]}
             >
               <Ionicons
-                // Traduce el valor del dato ("megafono" | "calendario") al
-                // nombre real del ícono de Ionicons.
                 name={
                   novedad.icono === "megafono"
                     ? "megaphone-outline"
@@ -374,27 +258,19 @@ export default function PantallaInicio() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// COMPONENTES AUXILIARES (privados: solo se usan en esta pantalla, por eso
-// viven en este archivo y no en `componentes/`)
-// ---------------------------------------------------------------------------
-
 type PropsTile = {
   valor: string;
-  sufijo?: string; // opcional: el "/38" chico al lado de "14"
+  sufijo?: string;
   rotulo: string;
   icono: keyof typeof Ionicons.glyphMap;
 };
 
-// Una cajita con ícono, un valor grande y un rótulo (Promedio / Créditos / Finales).
-// El cuarto tile (el cuatrimestre) tiene su propio componente, más abajo.
 function Tile({ valor, sufijo, rotulo, icono }: PropsTile) {
   return (
     <View style={estilos.tile}>
       <Ionicons name={icono} size={15} color={colores.textoTenue} />
       <View style={estilos.filaValor}>
         <Text style={estilos.valorTile}>{valor}</Text>
-        {/* El sufijo se dibuja solo si existe (ternario con `null`). */}
         {sufijo ? <Text style={estilos.sufijoTile}>{sufijo}</Text> : null}
       </View>
       <Text style={estilos.rotuloTile}>{rotulo}</Text>
@@ -402,33 +278,18 @@ function Tile({ valor, sufijo, rotulo, icono }: PropsTile) {
   );
 }
 
-// El tile del cuatrimestre: en lugar de ícono y número lleva un circulito que se
-// llena según la semana en la que estamos (semana / 16), con el porcentaje
-// adentro y "Semana 10" abajo. Fuera del cuatrimestre (en el receso) el círculo
-// queda vacío con una lunita y dice "Receso". `avance` es una unión de tipos:
-// `enCurso` dice qué campos hay, y TypeScript lo verifica en cada rama.
 function TileCuatrimestre({ avance }: { avance: AvanceCuatrimestre }) {
   return (
-    // Dos estilos en un array: el de cualquier tile y el que centra el contenido
-    // (el segundo pisa al primero donde coinciden).
     <View style={[estilos.tile, estilos.tileCentrado]}>
-      {/* El círculo: `valor` (0 a 1) es cuánto se pinta; `tamanio`, `largo` y
-          `grosor` son sus medidas en dp (más chicas que las de fábrica, para que
-          entre en el tile). Lo que va ENTRE las etiquetas (`children`) se dibuja
-          en el centro. */}
       <CirculoProgreso valor={avance.porcentaje} tamanio={48} largo={6} grosor={2}>
-        {/* Dentro del cuatrimestre: el porcentaje. En el receso: una lunita. */}
         {avance.enCurso ? (
           <Text style={estilos.porcentajeTile}>
-            {/* 0.625 × 100 = 62.5 → `Math.round` lo redondea a 63. */}
             {Math.round(avance.porcentaje * 100)}%
           </Text>
         ) : (
           <Ionicons name="moon-outline" size={16} color={colores.textoTenue} />
         )}
       </CirculoProgreso>
-      {/* El rótulo de abajo. Como `avance` es una unión de tipos, `semana` solo
-          existe cuando `enCurso` es `true`: TypeScript lo verifica en el ternario. */}
       <Text style={estilos.rotuloTile}>
         {avance.enCurso ? `Semana ${avance.semana}` : "Receso"}
       </Text>
@@ -436,23 +297,18 @@ function TileCuatrimestre({ avance }: { avance: AvanceCuatrimestre }) {
   );
 }
 
-// El encabezado de cada sección: un título y, opcionalmente, un enlace a la
-// derecha ("Ver agenda", "Ver plan").
 function Seccion({
   titulo,
   enlace,
   textoEnlace,
 }: {
   titulo: string;
-  // El enlace solo puede ser una de estas dos rutas (TypeScript lo verifica).
   enlace?: "/plan" | "/agenda";
   textoEnlace?: string;
 }) {
   return (
     <View style={estilos.cabeceraSeccion}>
       <Text style={estilos.tituloSeccion}>{titulo}</Text>
-      {/* `enlace && textoEnlace`: solo si se pasaron las dos cosas se dibuja el
-          enlace. `<Link>` navega a otra pestaña al tocarlo. */}
       {enlace && textoEnlace ? (
         <Link href={enlace} style={estilos.enlace}>
           {textoEnlace}
@@ -463,33 +319,26 @@ function Seccion({
 }
 
 const estilos = StyleSheet.create({
-  // El contenedor raíz: ocupa toda la pantalla (`flex: 1`) con el fondo negro del tema.
   pantalla: {
     flex: 1,
     backgroundColor: colores.fondo,
   },
 
-  // El `ScrollView` también ocupa todo el alto disponible.
   scroll: {
     flex: 1,
   },
 
-  // OJO: `paddingBottom: espacioBajoTabs` deja lugar abajo para la barra de
-  // tabs flotante (que no ocupa lugar en el layout). Sin esto, la barra
-  // taparía lo último de la pantalla.
   contenido: {
     padding: espaciado.lg,
     paddingBottom: espacioBajoTabs,
     gap: espaciado.md,
   },
 
-  // El bloque del saludo, con un poco de aire arriba y abajo.
   hero: {
     paddingTop: espaciado.xs,
     paddingBottom: espaciado.xs,
   },
 
-  // "Hola, María": el texto grande de la pantalla. `letterSpacing` negativo junta un poco las letras.
   saludo: {
     marginTop: espaciado.xs,
     fontSize: 34,
@@ -498,21 +347,17 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
 
-  // "2º cuatrimestre · En curso", más chico y apagado.
   contexto: {
     marginTop: 2,
     fontSize: 14,
     color: colores.textoTenue,
   },
 
-  // Los cuatro tiles en fila; cada uno tiene `flex: 1` y por eso miden lo mismo.
   tiles: {
     flexDirection: "row",
     gap: espaciado.sm,
   },
 
-  // `paddingHorizontal` chico: con cuatro tiles en una fila cada uno es angosto y
-  // "14/76" tiene que entrar. `minWidth: 0` deja que el tile se achique.
   tile: {
     flex: 1,
     minWidth: 0,
@@ -525,14 +370,12 @@ const estilos = StyleSheet.create({
     paddingHorizontal: espaciado.sm + 2,
   },
 
-  // Valor y sufijo en fila, alineados por abajo (`flex-end`).
   filaValor: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 1,
   },
 
-  // El número grande del tile ("8.5", "14", "2").
   valorTile: {
     fontSize: 22,
     fontWeight: "700",
@@ -540,55 +383,45 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
 
-  // El "/76" chico al lado del valor; `marginBottom` lo sube para alinearlo con la base del número.
   sufijoTile: {
     marginBottom: 3,
     fontSize: 12,
     color: colores.textoDebil,
   },
 
-  // El nombre del tile ("Promedio", "Créditos", "Finales", "Semana 10").
   rotuloTile: {
     fontSize: 11,
     color: colores.textoTenue,
   },
 
-  // Sobrescribe el `gap` y el `padding` base de `Tarjeta` (el estilo que se
-  // pasa por props va después y gana).
   tarjetaAvance: {
     gap: espaciado.sm,
     padding: espaciado.md,
   },
 
-  // "Avance de la carrera" a la izquierda y el porcentaje a la derecha
-  // (`space-between` los manda a los extremos).
   filaAvance: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
-  // "Avance de la carrera", a la izquierda.
   rotuloAvance: {
     fontSize: 13,
     fontWeight: "600",
     color: colores.textoSuave,
   },
 
-  // El porcentaje de la carrera ("20%"), en azul y a la derecha.
   porcentaje: {
     fontSize: 13,
     fontWeight: "700",
     color: colores.azulClaro,
   },
 
-  // "2 de 10 materias aprobadas", debajo de la barra.
   detalleAvance: {
     fontSize: 12,
     color: colores.textoTenue,
   },
 
-  // Encabezado de sección: título a la izquierda y enlace a la derecha, alineados por abajo.
   cabeceraSeccion: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -596,7 +429,6 @@ const estilos = StyleSheet.create({
     marginTop: espaciado.md,
   },
 
-  // El título de cada sección ("Hoy", "Próximas fechas"...).
   tituloSeccion: {
     fontSize: 22,
     fontWeight: "700",
@@ -604,21 +436,17 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
 
-  // El enlace de la derecha ("Ver agenda", "Ver plan").
   enlace: {
     fontSize: 14,
     fontWeight: "600",
     color: colores.azulClaro,
   },
 
-  // Las tarjetas de materia en fila.
   filaMaterias: {
     flexDirection: "row",
     gap: espaciado.md,
   },
 
-  // Cada tarjeta: mismo ancho (`flex: 1`), alto fijo y contenido repartido
-  // arriba/medio/abajo con `space-between`.
   tarjetaMateria: {
     flex: 1,
     height: 138,
@@ -630,19 +458,16 @@ const estilos = StyleSheet.create({
     padding: espaciado.md,
   },
 
-  // Se suma a una fila o tarjeta mientras se aprieta: queda un poco transparente.
   presionado: {
     opacity: 0.7,
   },
 
-  // Fila superior de la tarjeta: código a la izquierda, ícono de "en curso" a la derecha.
   filaMateria: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
-  // El código de la materia ("MAT-201"), chico y en mayúsculas.
   codigoMateria: {
     fontSize: 11,
     fontWeight: "700",
@@ -650,7 +475,6 @@ const estilos = StyleSheet.create({
     color: colores.azulTenue,
   },
 
-  // El nombre de la materia (hasta dos renglones: `numberOfLines={2}`).
   nombreMateria: {
     fontSize: 16,
     fontWeight: "600",
@@ -658,25 +482,21 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
 
-  // "6 créditos", abajo de la tarjeta.
   creditosMateria: {
     fontSize: 11,
     color: colores.textoTenue,
   },
 
-  // El tile del cuatrimestre centra su contenido (el círculo y el texto de abajo).
   tileCentrado: {
     alignItems: "center",
   },
 
-  // El porcentaje DENTRO del circulito.
   porcentajeTile: {
     fontSize: 11,
     fontWeight: "700",
     color: colores.texto,
   },
 
-  // Tarjeta del estado vacío: ícono y texto en fila.
   tarjetaVacia: {
     flexDirection: "row",
     alignItems: "center",
@@ -684,43 +504,36 @@ const estilos = StyleSheet.create({
     padding: espaciado.md,
   },
 
-  // El mensaje de los estados vacíos ("No tenés clases hoy.").
   textoVacio: {
     fontSize: 13,
     color: colores.textoTenue,
   },
 
-  // La tarjeta que junta varias filas (novedades y finales pendientes): poco relleno vertical, porque cada fila ya tiene el suyo.
   tarjetaNovedades: {
     paddingVertical: espaciado.xs,
   },
 
-  // Una fila de la lista: ícono a la izquierda y el texto a la derecha.
   filaNovedad: {
     flexDirection: "row",
     gap: espaciado.md,
     paddingVertical: espaciado.md,
   },
 
-  // La línea fina que va arriba de cada fila menos la primera. `hairlineWidth` es el grosor más fino que dibuja el dispositivo.
   separador: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colores.bordeSuave,
   },
 
-  // El bloque del texto: `flex: 1` ocupa lo que deja el ícono y baja de renglón si es largo.
   textoNovedad: {
     flex: 1,
   },
 
-  // El título del aviso o de la materia.
   tituloNovedad: {
     fontSize: 14,
     fontWeight: "600",
     color: colores.textoSuave,
   },
 
-  // La descripción, más chica y apagada.
   detalleNovedad: {
     marginTop: 4,
     fontSize: 12,

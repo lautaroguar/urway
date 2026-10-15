@@ -1,43 +1,3 @@
-/**
- * ============================================================================
- * componentes/SemanaCalendario.tsx — La grilla de una semana (lunes a domingo)
- * ============================================================================
- *
- * QUÉ ES:
- *   Un calendario de UNA semana: arriba los siete días (con el de hoy
- *   resaltado), a la izquierda las horas y en el medio siete columnas con los
- *   eventos colocados según su hora. Se desplaza hacia abajo para ver las horas
- *   que no entran en pantalla; el encabezado de los días queda fijo.
- *
- *     ┌────┬─────┬─────┬─────┬─ ─ ─┐
- *     │    │ Lun │ Mar │ Mié │ ... │   ← encabezado (fijo)
- *     ├────┼─────┼─────┼─────┼─ ─ ─┤
- *     │ 07 │     │     │     │     │   ← de acá para abajo hay scroll
- *     │ 08 │▇▇▇▇▇│     │     │     │
- *     │ 09 │▇▇▇▇▇│     │     │     │
- *     │ …  │     │     │     │     │
- *
- * LA IDEA CENTRAL — TODO SE CALCULA EN EL RENDER:
- *   Este componente NO tiene `useState` ni `useEffect`. Recibe los eventos y el
- *   lunes de la semana, y en cada render DERIVA todo lo demás: los siete días,
- *   los eventos de cada uno, el rango de horas, quién se pisa con quién y hasta
- *   la línea de "ahora". Es la misma idea que `CirculoProgreso` (cada rayita se
- *   coloca con números calculados al dibujar), pero con `top` y `height`.
- *
- * CÓMO ESTÁ ARMADO EL ANCHO:
- *   Las siete columnas son `flex: 1`: se reparten solas el ancho que sobra
- *   después de la columna de horas, sin medir la pantalla. Los bloques usan
- *   porcentajes de su columna.
- *
- * TEORÍA:
- *   [EST]   `flexDirection: "row"`, `flex: 1`, `position: "absolute"`,
- *           `StyleSheet.hairlineWidth`, `borderRadius` (círculo del día).
- *   [COMP]  `ScrollView` con `contentContainerStyle`, `Array.from` + `map` con
- *           `key` estable. Componente de presentación: no navega, avisa con
- *           `alTocarEvento` (datos bajan, eventos suben).
- *   [JS 25] Estado derivado: nada de lo calculado acá se guarda.
- *   [JS 26] Sin `useEffect`: calcular para dibujar no es un efecto.
- */
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { BloqueEvento } from "@/componentes/BloqueEvento";
@@ -60,62 +20,46 @@ import {
   sumarDias,
 } from "@/utilidades/fechas";
 
-// Ancho de la columna de las horas ("07:00") a la izquierda de la grilla.
 const ANCHO_HORAS = 32;
 
 type Props = {
-  /** TODOS los eventos: la grilla se queda con los de la semana que muestra. */
   eventos: Evento[];
-  /** El lunes de la semana a mostrar. */
   inicioSemana: Date;
-  /** Se ejecuta con el id del evento tocado. */
   alTocarEvento: (id: string) => void;
 };
 
-/** Grilla de una semana con los eventos posicionados por día y por hora. */
 export function SemanaCalendario({
   eventos,
   inicioSemana,
   alTocarEvento,
 }: Props) {
-  // "Ahora": se lee en cada render. La línea roja de hoy se corre sola cada vez
-  // que la pantalla se vuelve a dibujar (sin timers).
   const ahora = new Date();
   const hoy = claveFecha(ahora);
   const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
 
-  // Las horas que dibuja la grilla (de 07 a 24, o más si algún evento lo pide).
   const { horaInicio, horaFin } = rangoHorario(eventos);
-  // `Array.from({ length: n }, (_, i) => ...)` arma una lista de n elementos
-  // [JS 8]. Acá: [7, 8, 9, ..., 23].
   const horas = Array.from(
     { length: horaFin - horaInicio },
     (_, posicion) => horaInicio + posicion
   );
   const altoGrilla = horas.length * ALTO_HORA;
 
-  // Los siete días, del lunes al domingo.
   const dias = Array.from({ length: 7 }, (_, posicion) =>
     sumarDias(inicioSemana, posicion)
   );
 
-  // Solo los eventos de esta semana. Como las fechas son "AAAA-MM-DD", comparar
-  // como texto equivale a comparar fechas (igual que en Inicio).
   const desdeLunes = claveFecha(dias[0]);
   const hastaDomingo = claveFecha(dias[6]);
   const eventosDeLaSemana = eventos.filter(
     (evento) => evento.fecha >= desdeLunes && evento.fecha <= hastaDomingo
   );
 
-  // ¿La línea de "ahora" cae dentro de las horas que se dibujan?
   const ahoraVisible =
     minutosAhora >= horaInicio * 60 && minutosAhora < horaFin * 60;
 
   return (
     <View style={estilos.contenedor}>
-      {/* ---------- Encabezado: un día por columna (queda fijo) ---------- */}
       <View style={estilos.filaDias}>
-        {/* Hueco del ancho de la columna de horas, para alinear con la grilla. */}
         <View style={estilos.huecoHoras} />
         {dias.map((dia) => {
           const esHoy = claveFecha(dia) === hoy;
@@ -124,7 +68,6 @@ export function SemanaCalendario({
               <Text style={[estilos.nombreDia, esHoy && estilos.nombreHoy]}>
                 {etiquetaDiaCorto(dia)}
               </Text>
-              {/* El número va en un círculo; el de hoy, relleno de azul. */}
               <View style={[estilos.circuloDia, esHoy && estilos.circuloHoy]}>
                 <Text style={[estilos.numeroDia, esHoy && estilos.numeroHoy]}>
                   {dia.getDate()}
@@ -135,18 +78,12 @@ export function SemanaCalendario({
         })}
       </View>
 
-      {/* ---------- Cuerpo: las horas y las siete columnas (con scroll) ---------- */}
       <ScrollView
         style={estilos.scroll}
-        // Aire arriba (para que entre la primera hora) y lugar abajo para la barra
-        // de tabs flotante, como en las otras pestañas.
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
-        {/* Todo el cuerpo mide `altoGrilla`; adentro, las columnas van en fila. */}
         <View style={[estilos.cuerpo, { height: altoGrilla }]}>
-          {/* Líneas horizontales, una por hora. Van PRIMERO: lo que se dibuja
-              después (las columnas y los eventos) queda por encima. */}
           {horas.map((hora) => (
             <View
               key={`linea-${hora}`}
@@ -157,8 +94,6 @@ export function SemanaCalendario({
             />
           ))}
 
-          {/* Columna de las horas: cada rótulo absoluto, centrado sobre su línea
-              (el `top` negativo lo sube la mitad de su alto). */}
           <View style={estilos.columnaHoras}>
             {horas.map((hora) => (
               <Text
@@ -173,12 +108,9 @@ export function SemanaCalendario({
             ))}
           </View>
 
-          {/* Una columna por día. Cada una es `flex: 1` (mismo ancho) y es el
-              padre de los bloques: ellos se miden desde su borde de arriba. */}
           {dias.map((dia) => {
             const clave = claveFecha(dia);
             const esHoy = clave === hoy;
-            // Los eventos de ESTE día, ya repartidos si se pisan.
             const delDia = distribuirSolapados(
               eventosDeLaSemana.filter((evento) => evento.fecha === clave)
             );
@@ -199,7 +131,6 @@ export function SemanaCalendario({
                   />
                 ))}
 
-                {/* La línea de "ahora", solo en la columna de hoy. */}
                 {esHoy && ahoraVisible ? (
                   <View
                     style={[
@@ -220,14 +151,10 @@ export function SemanaCalendario({
 }
 
 const estilos = StyleSheet.create({
-  // Ocupa el espacio que le deja la pantalla. El `paddingHorizontal` chico le
-  // da más ancho a las columnas.
   contenedor: {
     flex: 1,
     paddingHorizontal: espaciado.xs,
   },
-
-  // ----- Encabezado -----
 
   filaDias: {
     flexDirection: "row",
@@ -240,7 +167,6 @@ const estilos = StyleSheet.create({
     width: ANCHO_HORAS,
   },
 
-  // Cada día: `flex: 1` para repartir el ancho en partes iguales.
   celdaDia: {
     flex: 1,
     alignItems: "center",
@@ -257,7 +183,6 @@ const estilos = StyleSheet.create({
     color: colores.azulClaro,
   },
 
-  // Círculo de 26 de diámetro (radio = mitad del lado) para el número del día.
   circuloDia: {
     width: 26,
     height: 26,
@@ -280,25 +205,19 @@ const estilos = StyleSheet.create({
     color: colores.blanco,
   },
 
-  // ----- Cuerpo -----
-
   scroll: {
     flex: 1,
   },
 
-  // Arriba: aire para el rótulo de la primera hora (que sobresale de su línea).
-  // Abajo: el hueco de la barra de tabs flotante.
   contenido: {
     paddingTop: espaciado.sm,
     paddingBottom: espacioBajoTabs,
   },
 
-  // Las columnas, una al lado de la otra. El alto lo pone el componente.
   cuerpo: {
     flexDirection: "row",
   },
 
-  // Línea fina que cruza todas las columnas (deja libre la de las horas).
   linea: {
     position: "absolute",
     left: ANCHO_HORAS,
@@ -319,19 +238,16 @@ const estilos = StyleSheet.create({
     color: colores.textoDebil,
   },
 
-  // Una columna de día: línea vertical fina a la izquierda como separador.
   columnaDia: {
     flex: 1,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: colores.bordeSuave,
   },
 
-  // La columna de hoy lleva un tinte azul suave.
   columnaHoy: {
     backgroundColor: colores.resaltadoHoy,
   },
 
-  // La línea de "ahora": una raya fina que cruza la columna. El `top` va inline.
   ahora: {
     position: "absolute",
     left: 0,
@@ -340,7 +256,6 @@ const estilos = StyleSheet.create({
     backgroundColor: colores.alerta,
   },
 
-  // Puntito a la izquierda de la raya; `top: -3` lo centra sobre ella (8 de alto).
   puntoAhora: {
     position: "absolute",
     left: -4,
